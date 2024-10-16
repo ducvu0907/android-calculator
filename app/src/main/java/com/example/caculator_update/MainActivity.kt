@@ -5,25 +5,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import android.widget.TextView
 import android.view.View
 import android.widget.Button
-import android.widget.TextView
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
-    private lateinit var textResult: TextView
-    private lateinit var textExpression: TextView
-    private var state: Int = 1 // 1 for first operand, 2 for second operand
-    private var isAns = false
-    private var operation: Int = 0 // 1: +, 2: -, 3: *, 4: /
-    private var operand1: Int = 0
-    private var operand2: Int = 0
+    lateinit var textResult: TextView
+    var state: Int = 1
+    var isAns = false
+    var op: Int? = null
+    var op1: Int = 0
+    var op2: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
 
+        setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.activity_main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -32,167 +31,142 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         textResult = findViewById(R.id.text_result)
 
-        val buttons = listOf(
+        val buttonIds = listOf(
             R.id.btn0, R.id.btn1, R.id.btn2, R.id.btn3,
             R.id.btn4, R.id.btn5, R.id.btn6, R.id.btn7,
             R.id.btn8, R.id.btn9, R.id.btnCE, R.id.btnC,
-            R.id.btnBS, R.id.btnAdd, R.id.btnSubtract,
-            R.id.btnMultiply, R.id.btnDivide, R.id.btnEqual,
+            R.id.btnBS, R.id.btnAdd, R.id.btnEqual,
+            R.id.btnDivide, R.id.btnSubtract, R.id.btnMultiply,
             R.id.btnAddOrSubTract
         )
 
-        buttons.forEach { id ->
+        buttonIds.forEach { id ->
             findViewById<Button>(id).setOnClickListener(this)
         }
     }
 
-    override fun onClick(view: View) {
-        val id = view.id
+    override fun onClick(view: View?) {
+        val id = view?.id
         when (id) {
-            in R.id.btn0..R.id.btn9 -> addDigit(id - R.id.btn0)
-            R.id.btnAdd -> handleOperation(1, " + ")
-            R.id.btnSubtract -> handleOperation(2, " - ")
-            R.id.btnMultiply -> handleOperation(3, " * ")
-            R.id.btnDivide -> handleOperation(4, " / ")
-            R.id.btnCE -> clearEntry()
-            R.id.btnC -> clearAll()
+            in R.id.btn0..R.id.btn9 -> {
+                // Ensure 'id' is not null before performing the operation
+                id?.let { addDigit(it - R.id.btn0) }
+            }
+            R.id.btnAdd -> handleOperation(1)
+            R.id.btnSubtract -> handleOperation(2)
+            R.id.btnMultiply -> handleOperation(3)
+            R.id.btnDivide -> handleOperation(4)
+            R.id.btnCE -> clear()
+            R.id.btnC -> reset()
             R.id.btnBS -> backspace()
             R.id.btnAddOrSubTract -> toggleSign()
             R.id.btnEqual -> calculateResult()
         }
     }
 
-    private fun handleOperation(op: Int, operator: String) {
+    private fun handleOperation(operation: Int) {
         isAns = false
         if (state == 1) {
-            if (operation != op) {
-                textExpression.append(operator)
-            }
-            operation = op
+            op = operation
             state = 2
-        } else {
-            calculateIntermediateResult()
-            textExpression.append(operator)
-            operation = op
+        } else if (state == 2) {
+            val result = calculate()
+            textResult.text = "$result"
+            op1 = result
+            op2 = 0
+            op = operation
             state = 2
         }
     }
 
-    private fun calculateIntermediateResult() {
-        val result = when (operation) {
-            1 -> operand1 + operand2
-            2 -> operand1 - operand2
-            3 -> operand1 * operand2
-            4 -> operand1 / operand2
-            else -> 0
+    private fun calculate(): Int {
+        return when (op) {
+            1 -> op1 + op2
+            2 -> op1 - op2
+            3 -> op1 * op2
+            4 -> op1 / op2
+            else -> op1
         }
-        updateResultAndExpression(result)
-        operand1 = result
-        operand2 = 0
     }
 
-    private fun addDigit(digit: Int) {
-        if (isAns) {
-            resetCalculator()
+    private fun getOperationSymbol(op: Int): String {
+        return when (op) {
+            1 -> "+"
+            2 -> "-"
+            3 -> "*"
+            4 -> "/"
+            else -> ""
         }
+    }
+
+    private fun clear() {
         if (state == 1) {
-            operand1 = operand1 * 10 + digit
-            updateResultAndExpression(operand1)
+            resetValues()
+            textResult.text = "0"
         } else {
-            operand2 = operand2 * 10 + digit
-            updateResultAndExpression(operand2)
-            textExpression.append("$digit")
+            op2 = 0
+            textResult.text = "0"
         }
     }
 
-    private fun updateResultAndExpression(value: Int) {
-        textResult.text = value.toString()
-        if (state == 1) {
-            textExpression.text = value.toString()
-        }
-    }
-
-    private fun clearEntry() {
-        if (state == 1) {
-            resetOperands()
-            updateResultAndExpression(0)
-        } else {
-            operand2 = 0
-            updateResultAndExpression(0)
-            updateExpression()
-        }
-    }
-
-    private fun clearAll() {
-        resetCalculator()
-        updateResultAndExpression(0)
+    private fun reset() {
+        state = 1
+        resetValues()
+        textResult.text = "$op1"
     }
 
     private fun backspace() {
         if (isAns) {
-            clearAll()
-        } else if (state == 1 && operand1 != 0) {
-            operand1 /= 10
-            updateResultAndExpression(operand1)
-            removeLastCharacter(textExpression)
-        } else if (state == 2 && operand2 != 0) {
-            operand2 /= 10
-            updateResultAndExpression(operand2)
-            removeLastCharacter(textExpression)
+            reset()
+        } else if (state == 1 && op1 != 0) {
+            op1 /= 10
+            textResult.text = "$op1"
+        } else if (state == 2 && op2 != 0) {
+            op2 /= 10
+            textResult.text = "$op2"
         }
     }
 
     private fun toggleSign() {
-        if (state == 1 && operation == 0) {
-            operand1 = -operand1
-            updateResultAndExpression(operand1)
-        } else if (state == 2) {
-            operand2 = -operand2
-            updateResultAndExpression(operand2)
-            updateExpression()
+        if (state == 1) {
+            if (op == null) {
+                op1 = -op1
+                textResult.text = "$op1"
+            }
+        } else {
+            op2 = -op2
+            textResult.text = "$op2"
         }
     }
 
     private fun calculateResult() {
-        val result = when (operation) {
-            1 -> operand1 + operand2
-            2 -> operand1 - operand2
-            3 -> operand1 * operand2
-            4 -> operand1 / operand2
-            else -> operand1
-        }
-        updateResultAndExpression(result)
+        val result = calculate()
+        textResult.text = "$result"
         isAns = true
-        resetOperands()
+        state = 1
+        op1 = result
+        op2 = 0
+        op = null
     }
 
-    private fun updateExpression() {
-        textExpression.text = "$operand1 ${getOperatorSymbol(operation)}"
-    }
-
-    private fun getOperatorSymbol(op: Int) = when (op) {
-        1 -> "+"
-        2 -> "-"
-        3 -> "*"
-        4 -> "/"
-        else -> ""
-    }
-
-    private fun resetOperands() {
-        operand1 = 0
-        operand2 = 0
-        operation = 0
-    }
-
-    private fun resetCalculator() {
-        resetOperands()
-        isAns = false
-    }
-
-    private fun removeLastCharacter(textView: TextView) {
-        val currentText = textView.text.toString()
-        if (currentText.isNotEmpty()) {
-            textView.text = currentText.dropLast(1)
+    private fun addDigit(c: Int) {
+        if (isAns) {
+            state = 1
+            resetValues()
+            isAns = false
         }
+        if (state == 1) {
+            op1 = op1 * 10 + c
+            textResult.text = "$op1"
+        } else {
+            op2 = op2 * 10 + c
+            textResult.text = "$op2"
+        }
+    }
+
+    private fun resetValues() {
+        op1 = 0
+        op2 = 0
+        op = null
     }
 }
